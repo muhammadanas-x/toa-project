@@ -32,15 +32,15 @@ def process_message():
         execution_time = time.time() - start_time
         
         if generated_code:
-            # Save the generated code to a file
-            filename = f"generated_manim_{chat_id}_{int(time.time())}.py"
-            save_code_to_file(generated_code, filename)
+            # Don't save the file to avoid triggering Flask reload
+            # The code is already returned to frontend and will be passed to renderer
+            # filename = f"generated_manim_{chat_id}_{int(time.time())}.py"
+            # save_code_to_file(generated_code, filename)
             
             return jsonify({
                 'success': True,
                 'response': f"Successfully generated Manim code based on your request!",
                 'code': generated_code,
-                'filename': filename,
                 'execution_time': round(execution_time, 2),
                 'chat_id': chat_id
             })
@@ -280,4 +280,16 @@ def health_check():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Exclude generated files and renders from triggering reloads
+    import os
+    extra_files = []
+    extra_dirs = ['generated', 'renders', 'generated_manim_*']
+    
+    app.run(
+        debug=True, 
+        host='0.0.0.0', 
+        port=5000,
+        extra_files=extra_files,
+        use_reloader=True,
+        reloader_type='watchdog'
+    )

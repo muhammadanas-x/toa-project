@@ -104,6 +104,7 @@ Return only the complete modified Python code without any omissions or simplific
 """
 
     try:
+        print(f"Calling ollama.generate() with model 'gpt-oss:20b'...")
         response = ollama.generate(
             model='gpt-oss:20b',
             system=system_prompt,
@@ -111,11 +112,14 @@ Return only the complete modified Python code without any omissions or simplific
         )
 
         modified_code = response['response']
-        print("✓ Code modified successfully\n")
+        print(f"✓ Code modified successfully ({len(modified_code)} characters)\n")
+        print(f"Preview of modified code:\n{modified_code[:300]}...\n")
         return modified_code
 
     except Exception as e:
-        print(f"Error modifying code: {e}")
+        print(f"❌ Error modifying code: {e}")
+        import traceback
+        traceback.print_exc()
         return None
     
 
@@ -130,10 +134,17 @@ def manim_pipeline(user_prompt):
     # Step 1: Search RAG for most relevant template
     print("STEP 1: RAG Template Search")
     print("-"*80)
-    rag_docs = search_rag(user_prompt, top_k=1)
+    
+    try:
+        rag_docs = search_rag(user_prompt, top_k=1)
+    except Exception as e:
+        print(f"❌ Error in RAG search: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
     
     if not rag_docs:
-        print("No RAG documentation found!")
+        print("❌ No RAG documentation found!")
         return None
     
     # Get the top result
@@ -141,11 +152,11 @@ def manim_pipeline(user_prompt):
     template_code = top_result['response']  # Get the response (Manim code) from metadata
     matched_instruction = top_result['instruction']  # The instruction that was matched
     
-    print(f"Best Match Found:")
+    print(f"✓ Best Match Found:")
     print(f"  File: {top_result['filename']}")
     print(f"  Relevance Score: {top_result['score']:.3f}")
     print(f"  Matched Instruction: {matched_instruction[:100]}...")
-    print(f"\nTemplate Code Preview:")
+    print(f"\n✓ Template Code Preview:")
     print("-"*40)
     print(template_code[:500] + "..." if len(template_code) > 500 else template_code)
     print("-"*40 + "\n")
@@ -153,17 +164,25 @@ def manim_pipeline(user_prompt):
     # Step 2: Modify the template code using gpt-oss:20b
     print("STEP 2: Modify Template with LLM")
     print("-"*80)
-    modified_code = modify_code_with_rag(user_prompt, template_code)
+    
+    try:
+        modified_code = modify_code_with_rag(user_prompt, template_code)
+    except Exception as e:
+        print(f"❌ Error in code modification: {e}")
+        import traceback
+        traceback.print_exc()
+        print("⚠️ Falling back to original template")
+        return template_code
     
     if not modified_code:
-        print("Failed to modify code, returning original template")
+        print("⚠️ Failed to modify code, returning original template")
         return template_code
     
     # Extract clean code
     final_code = extract_code_from_response(modified_code)
     
     print("="*80)
-    print("FINAL MODIFIED CODE:")
+    print("✅ FINAL MODIFIED CODE:")
     print("="*80)
     print(final_code)
     print("="*80)
@@ -214,11 +233,16 @@ Provide a complete solution with explanations for each step."""
 
 
 def save_code_to_file(code, filename="generated_manim_scene.py"):
-    """Save the generated code to a file."""
+    """Save the generated code to a file in a separate directory to avoid Flask reload."""
+    import os
     try:
-        with open(filename, 'w', encoding='utf-8') as f:
+        # Save to a 'generated' subdirectory to avoid triggering Flask reload
+        os.makedirs('generated', exist_ok=True)
+        filepath = os.path.join('generated', filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
             f.write(code)
-        print(f"\n✓ Code saved to: {filename}")
+        print(f"\n✓ Code saved to: {filepath}")
         return True
     except Exception as e:
         print(f"\n✗ Error saving code: {e}")
